@@ -46,7 +46,7 @@ extension Channel {
         }
 
         var buffer = self.allocator.buffer(capacity: bytes.count)
-        buffer.write(bytes: bytes)
+        buffer.writeBytes(bytes)
 
         // create envelope
         let envelope = AddressedEnvelope(remoteAddress: remoteAddr, data: buffer)
@@ -57,18 +57,14 @@ extension Channel {
 
 // MAIN CODE STARTS HERE //
 
-let threadGroup = MultiThreadedEventLoopGroup(numberOfThreads: 1)
-defer {
-    do {
-        try threadGroup.syncShutdownGracefully()
-    } catch {
-    }
-}
-
-let bootstrap = DatagramBootstrap(group: threadGroup)
+let group = MultiThreadedEventLoopGroup(numberOfThreads: 1)
+let bootstrap = DatagramBootstrap(group: group)
     .channelOption(ChannelOptions.socket(SocketOptionLevel(SOL_SOCKET), SO_REUSEADDR), value: 1)
     .channelInitializer { channel in
-        channel.pipeline.addHandlers([OSCPacketReader(), OSCDebugHandler()], first: true)
+        channel.pipeline.addHandlers([OSCPacketReader(), OSCDebugHandler()])
+}
+defer {
+    try! group.syncShutdownGracefully()
 }
 
 let arguments = CommandLine.arguments
@@ -102,4 +98,4 @@ sleep(2)
 let freeNodeMessage = OSCMessage(address: "/n_free", args: [synthID])
 try channel.writeAndFlush(freeNodeMessage, target: remoteAddr)
 
-try channel.close(mode: .all).wait()
+try channel.closeFuture.wait()
